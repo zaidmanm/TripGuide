@@ -7,8 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Trip Guide">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#07100A">
+<meta name="theme-color" content="#1A6B3C">
 <link id="pwa-manifest" rel="manifest">
+<link id="apple-touch-icon-link" rel="apple-touch-icon">
 <title>Trip Guide</title>
 <style>
 :root{--sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom);
@@ -106,7 +107,23 @@ input:focus,textarea:focus,select:focus{outline:none;}
   justify-content:center;min-height:100dvh;padding:40px;text-align:center;}
 .loading-city{font-size:32px;font-weight:900;color:var(--tx);margin-bottom:6px;}
 .loading-sub{font-size:13px;color:var(--sub);margin-bottom:40px;line-height:1.6;}
-.loading-spinner{font-size:40px;margin-bottom:20px;}
+/* Gentle globe pulse — no spinning planes */
+.loading-globe{font-size:72px;margin-bottom:16px;
+  animation:globe-breathe 2.8s ease-in-out infinite;}
+@keyframes globe-breathe{
+  0%,100%{transform:scale(1);filter:brightness(1);}
+  50%{transform:scale(1.08);filter:brightness(1.2);}
+}
+/* Glowing ring around globe */
+.loading-ring{width:100px;height:100px;border-radius:50%;
+  border:2px solid var(--g);margin:0 auto 8px;
+  position:relative;display:flex;align-items:center;justify-content:center;
+  animation:ring-glow 2.8s ease-in-out infinite;}
+@keyframes ring-glow{
+  0%,100%{box-shadow:0 0 0 0 rgba(0,200,83,0.3),0 0 0 0 rgba(0,200,83,0.1);}
+  50%{box-shadow:0 0 0 12px rgba(0,200,83,0.15),0 0 0 24px rgba(0,200,83,0.05);}
+}
+.loading-emoji{font-size:52px;line-height:1;}
 .loading-step{font-size:12px;color:var(--g);margin-top:16px;}
 .progress-dots{display:flex;gap:8px;justify-content:center;margin-top:20px;}
 .dot-pulse{width:8px;height:8px;border-radius:50%;background:var(--g);
@@ -353,6 +370,20 @@ input:focus,textarea:focus,select:focus{outline:none;}
   border-radius:10px;padding:9px 8px;font-size:12px;font-weight:700;cursor:pointer;}
 .itab-btn.active{background:var(--g);color:#000;border-color:var(--g);}
 
+/* ── CUSTOM MODAL (replaces alert()) ── */
+#app-modal{position:fixed;inset:0;z-index:990;background:rgba(2,8,3,.85);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:center;padding:24px;}
+#app-modal.hidden{display:none;}
+.modal-box{background:#0D1C0F;border:1.5px solid var(--g);border-radius:20px;
+  padding:24px 22px;width:100%;max-width:340px;}
+.modal-logo{font-size:11px;font-weight:800;color:var(--g);letter-spacing:2px;
+  text-transform:uppercase;margin-bottom:12px;opacity:.7;}
+.modal-msg{font-size:14px;color:var(--tx);line-height:1.6;margin-bottom:20px;}
+.modal-ok{width:100%;background:linear-gradient(135deg,var(--g),#009E3A);
+  color:#000;border:none;border-radius:12px;padding:13px;
+  font-size:14px;font-weight:800;cursor:pointer;}
+
 /* ── SPEAK BUTTON ── */
 .speak-wrap{position:fixed;bottom:calc(20px + var(--sab));left:50%;
   transform:translateX(-50%);display:flex;flex-direction:column;
@@ -369,6 +400,15 @@ input:focus,textarea:focus,select:focus{outline:none;}
 </style>
 </head>
 <body>
+
+<!-- ── CUSTOM MODAL ── -->
+<div id="app-modal" class="hidden">
+  <div class="modal-box">
+    <div class="modal-logo">✈ Trip Guide</div>
+    <div class="modal-msg" id="modal-msg"></div>
+    <button class="modal-ok btn" onclick="closeModal()">OK</button>
+  </div>
+</div>
 
 <!-- ── HOTEL SELECTION OVERLAY ── -->
 <div id="hotel-ol" class="hidden">
@@ -469,9 +509,11 @@ input:focus,textarea:focus,select:focus{outline:none;}
 <!-- ══ SCREEN 3: LOADING ══ -->
 <div id="s-loading" class="screen">
   <div class="loading-wrap">
-    <div class="loading-spinner spin">✈</div>
+    <div class="loading-ring">
+      <div class="loading-emoji" id="l-emoji">🌍</div>
+    </div>
     <div class="loading-city" id="l-city">Tokyo</div>
-    <div class="loading-sub" id="l-sub">Generating your itinerary,<br>local phrases &amp; crew info...</div>
+    <div class="loading-sub" id="l-sub">Crafting your perfect itinerary,<br>local phrases &amp; crew info...</div>
     <div class="progress-dots">
       <div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div>
     </div>
@@ -517,8 +559,36 @@ input:focus,textarea:focus,select:focus{outline:none;}
   <div class="settings-body">
     <div class="setting-section">
       <span class="setting-label">Anthropic API Key</span>
-      <input class="setting-input" type="password" id="key-input" placeholder="sk-ant-...">
-      <div class="setting-note">Your key is stored only on this device. Needed to generate AI itineraries.<br>Get a free key at <strong style="color:var(--g);">console.anthropic.com</strong></div>
+
+      <!-- Get key button -->
+      <button class="btn" onclick="window.open('https://console.anthropic.com','_blank')" style="width:100%;background:linear-gradient(135deg,#1A3A6B,#0A1F4A);color:var(--b);border:1px solid #1A2A5A;border-radius:11px;padding:13px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px;">
+        🔑 Get Free API Key → console.anthropic.com
+      </button>
+
+      <!-- How-to steps -->
+      <div style="background:#050C07;border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:12px;">
+        <div style="font-size:10px;font-weight:800;color:var(--sub);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">How to get your key</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="width:20px;height:20px;border-radius:50%;background:var(--g);color:#000;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">1</div>
+            <div style="font-size:11px;color:var(--sub);line-height:1.5;">Tap the blue button above → sign up free with email or Google</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="width:20px;height:20px;border-radius:50%;background:var(--g);color:#000;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">2</div>
+            <div style="font-size:11px;color:var(--sub);line-height:1.5;">Tap <strong style="color:var(--tx);">API Keys</strong> in the left menu → <strong style="color:var(--tx);">Create Key</strong></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="width:20px;height:20px;border-radius:50%;background:var(--g);color:#000;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">3</div>
+            <div style="font-size:11px;color:var(--sub);line-height:1.5;">Copy the key → come back here → paste below → Save</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;background:#041008;border:1px solid #163010;border-radius:8px;padding:8px 10px;">
+          <div style="font-size:10px;color:var(--nat);font-weight:700;margin-bottom:2px;">💰 Cost</div>
+          <div style="font-size:10px;color:var(--sub);line-height:1.5;">Starts with <strong style="color:var(--tx);">$5 free credit</strong> — about 50–80 city guides. After that ~5¢ per city. Never auto-charges. Key stored on your device only.</div>
+        </div>
+      </div>
+
+      <input class="setting-input" type="password" id="key-input" placeholder="Paste sk-ant-... here">
       <div id="key-status" class="api-status none">No API key — AI generation disabled. You can still create trips manually.</div>
       <button class="setting-save btn" onclick="saveKey()">Save API Key</button>
     </div>
@@ -550,17 +620,176 @@ input:focus,textarea:focus,select:focus{outline:none;}
 
 <script>
 // ── PWA SETUP ────────────────────────────────────────────────────────────────
+// Chrome Android IGNORES blob: manifest URLs → must use data: URI or real file.
+// We render the icon to canvas (real PNG), embed it in the manifest as base64,
+// then set the manifest as a data: URI. This makes "Add to Home Screen" from
+// Chrome's ⋮ menu use our icon + name + standalone display correctly.
 (function(){
-  const m={name:"Trip Guide",short_name:"Trips",display:"standalone",
-    background_color:"#07100A",theme_color:"#07100A",start_url:"./",
-    icons:[{src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307100A'/><text y='.85em' font-size='70' x='10'>✈</text></svg>",sizes:"512x512",type:"image/svg+xml"}]};
-  const b=new Blob([JSON.stringify(m)],{type:'application/json'});
-  document.getElementById('pwa-manifest').href=URL.createObjectURL(b);
-  if('serviceWorker' in navigator){
-    const sw=`const C='tg-v1';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll([location.href]))));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).catch(()=>caches.match(location.href)))))`;
-    navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'}))).catch(()=>{});
+
+  // Draw icon on canvas → returns base64 PNG data URI
+  function drawIcon(size){
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = size;
+    const c = cv.getContext('2d');
+    const half = size / 2;
+
+    // Background: vivid green → teal → blue gradient
+    const bg = c.createLinearGradient(0, 0, size, size);
+    bg.addColorStop(0,   '#00C853');
+    bg.addColorStop(0.45,'#00897B');
+    bg.addColorStop(1,   '#0066CC');
+    const radius = size * 0.22;
+    c.beginPath();
+    c.moveTo(radius, 0);
+    c.lineTo(size - radius, 0);
+    c.quadraticCurveTo(size, 0, size, radius);
+    c.lineTo(size, size - radius);
+    c.quadraticCurveTo(size, size, size - radius, size);
+    c.lineTo(radius, size);
+    c.quadraticCurveTo(0, size, 0, size - radius);
+    c.lineTo(0, radius);
+    c.quadraticCurveTo(0, 0, radius, 0);
+    c.fillStyle = bg;
+    c.fill();
+
+    // Globe: aqua circle
+    const globe = c.createRadialGradient(half*0.85, half*0.75, 0, half, half, half*0.62);
+    globe.addColorStop(0, '#80DEEA');
+    globe.addColorStop(1, '#0077B6');
+    c.beginPath();
+    c.arc(half, half, half * 0.60, 0, Math.PI * 2);
+    c.fillStyle = globe;
+    c.fill();
+
+    // Globe grid lines
+    c.strokeStyle = 'rgba(255,255,255,0.4)';
+    c.lineWidth = size * 0.015;
+    // Equator
+    c.beginPath();
+    c.ellipse(half, half, half*0.60, half*0.22, 0, 0, Math.PI*2);
+    c.stroke();
+    // Vertical meridian
+    c.beginPath();
+    c.ellipse(half, half, half*0.22, half*0.60, 0, 0, Math.PI*2);
+    c.stroke();
+
+    // Plane: white silhouette
+    c.save();
+    c.translate(half * 1.02, half * 0.98);
+    c.rotate(-0.65); // ~-37 degrees
+    const ps = size * 0.28;
+    c.fillStyle = 'white';
+    // Fuselage
+    c.beginPath();
+    c.ellipse(0, 0, ps * 0.55, ps * 0.13, 0, 0, Math.PI * 2);
+    c.fill();
+    // Nose cone
+    c.beginPath();
+    c.moveTo(ps * 0.42, -ps * 0.04);
+    c.lineTo(ps * 0.68, 0);
+    c.lineTo(ps * 0.42, ps * 0.04);
+    c.fill();
+    // Left wing
+    c.beginPath();
+    c.moveTo(ps * 0.05, -ps * 0.03);
+    c.lineTo(ps * 0.30,  -ps * 0.40);
+    c.lineTo(ps * 0.42, -ps * 0.32);
+    c.lineTo(ps * 0.18, -ps * 0.03);
+    c.fill();
+    // Right wing
+    c.beginPath();
+    c.moveTo(ps * 0.08, ps * 0.03);
+    c.lineTo(ps * 0.28,  ps * 0.38);
+    c.lineTo(ps * 0.40,  ps * 0.30);
+    c.lineTo(ps * 0.20,  ps * 0.03);
+    c.fill();
+    // Tail fin
+    c.beginPath();
+    c.moveTo(-ps * 0.42, -ps * 0.04);
+    c.lineTo(-ps * 0.60, -ps * 0.28);
+    c.lineTo(-ps * 0.44, -ps * 0.22);
+    c.lineTo(-ps * 0.34, -ps * 0.02);
+    c.fill();
+    c.restore();
+
+    // Gold star badge top-right
+    const sr = size * 0.12;
+    const sx = size * 0.78, sy = size * 0.22;
+    const starGrad = c.createRadialGradient(sx-sr*0.2, sy-sr*0.2, 0, sx, sy, sr);
+    starGrad.addColorStop(0, '#FFE57F');
+    starGrad.addColorStop(1, '#F9A825');
+    c.beginPath();
+    c.arc(sx, sy, sr, 0, Math.PI * 2);
+    c.fillStyle = starGrad;
+    c.fill();
+    // Star shape
+    c.fillStyle = '#004D20';
+    c.font = `bold ${size*0.13}px Arial`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('✈', sx, sy + size*0.005);
+
+    return cv.toDataURL('image/png');
+  }
+
+  // Build icon and wire up manifest + apple touch icon
+  function init(){
+    const png = drawIcon(512);
+
+    // Manifest as data: URI (base64) — Chrome Android reads this correctly
+    const manifest = {
+      name: 'Trip Guide',
+      short_name: 'Trip Guide',
+      description: 'AI travel companion for flight crew layovers',
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#00C853',
+      theme_color: '#00C853',
+      start_url: './',
+      icons: [
+        { src: png, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: png, sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+      ]
+    };
+    const b64 = btoa(JSON.stringify(manifest));
+    document.getElementById('pwa-manifest').href = 'data:application/manifest+json;base64,' + b64;
+
+    // Apple touch icon for iOS
+    const atil = document.getElementById('apple-touch-icon-link');
+    if(atil) atil.href = png;
+
+    // Service worker (provides offline caching)
+    if('serviceWorker' in navigator){
+      const sw = `const C='tg-v4';
+self.addEventListener('install', e=>{ self.skipWaiting(); e.waitUntil(caches.open(C).then(c=>c.addAll([location.href]))); });
+self.addEventListener('activate', e=>{ e.waitUntil(clients.claim()); });
+self.addEventListener('fetch', e=>{ e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))); });`;
+      try {
+        navigator.serviceWorker.register(
+          URL.createObjectURL(new Blob([sw], {type:'application/javascript'})),
+          {scope: './'}
+        ).catch(()=>{});
+      } catch(e){}
+    }
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
 })();
+
+// ── CUSTOM MODAL ──────────────────────────────────────────────────────────────
+function showAlert(msg, cb){
+  document.getElementById('modal-msg').textContent = msg;
+  document.getElementById('app-modal').classList.remove('hidden');
+  window._modalCb = cb || null;
+}
+function closeModal(){
+  document.getElementById('app-modal').classList.add('hidden');
+  if(window._modalCb){ window._modalCb(); window._modalCb=null; }
+}
 
 // ── INSTALL ───────────────────────────────────────────────────────────────────
 let dPrm=null;
@@ -661,7 +890,7 @@ function renderSettings(){
 
 function saveKey(){
   const v=document.getElementById('key-input').value.trim();
-  if(v&&!v.startsWith('sk-ant-'))return alert('That doesn\'t look like an Anthropic key. It should start with sk-ant-');
+  if(v&&!v.startsWith('sk-ant-'))return showAlert('That doesn\'t look like an Anthropic key. It should start with sk-ant-');
   if(v&&!v.includes('•')) LS.set('apiKey',v);
   renderSettings();
   document.getElementById('api-hint').textContent='';
@@ -691,7 +920,7 @@ async function lookupHotel(){
   const key = getKey();
   if(!key) return; // silently skip if no API key yet
   const res_el = document.getElementById('hotel-lookup-result');
-  res_el.innerHTML=`<div class="hotel-status"><span class="spin" style="display:inline-block;">⟳</span> Looking up ${E(name)}...</div>`;
+  res_el.innerHTML=`<div class="hotel-status"><span style="display:inline-block;animation:globe-breathe 1.5s ease-in-out infinite;">🔍</span> Looking up ${E(name)}...</div>`;
   window._selectedHotel = null;
 
   try {
@@ -786,7 +1015,7 @@ function validateForm(d){
 }
 
 function createManual(){
-  const d=getFormData(); const err=validateForm(d); if(err) return alert(err);
+  const d=getFormData(); const err=validateForm(d); if(err) return showAlert(err);
   const trip=buildTrip(d,[
     makeHotelStop(d),
     makeDepartureStop(d),
@@ -797,16 +1026,29 @@ function createManual(){
 
 // ── AI GENERATION ─────────────────────────────────────────────────────────────
 async function generateTrip(){
-  const d=getFormData(); const err=validateForm(d); if(err) return alert(err);
+  const d=getFormData(); const err=validateForm(d); if(err) return showAlert(err);
   const key=getKey();
-  if(!key) return alert('No API key set. Go to ⚙ Settings to add your Anthropic API key, or use "Create Blank" to build manually.');
+  if(!key) return showAlert('No API key set. Go to ⚙ Settings to add your Anthropic API key, or tap "Create Blank" to build manually.');
 
   show('s-loading');
   document.getElementById('l-city').textContent=d.city.toUpperCase();
-  const steps=['Researching local culture...','Finding hidden culinary gems...','Mapping the best viewpoints...','Generating local phrases...','Checking crew airport procedures...','Putting it all together...'];
+  const steps=[
+    {msg:'Exploring local neighborhoods...', emoji:'🗺'},
+    {msg:'Finding hidden culinary gems...', emoji:'🍽'},
+    {msg:'Discovering the best viewpoints...', emoji:'🌄'},
+    {msg:'Learning local phrases for you...', emoji:'💬'},
+    {msg:'Checking crew airport info...', emoji:'🛂'},
+    {msg:'Almost ready...', emoji:'✨'},
+  ];
   let si=0;
   const stepEl=document.getElementById('l-step');
-  const stepInt=setInterval(()=>{stepEl.textContent=steps[si%steps.length];si++;},2200);
+  const emojiEl=document.getElementById('l-emoji');
+  const stepInt=setInterval(()=>{
+    const s=steps[si%steps.length];
+    stepEl.textContent=s.msg;
+    emojiEl.textContent=s.emoji;
+    si++;
+  },2200);
 
   const numDays=daysBetween(d.arriveDate,d.departDate)+1;
   const interests=d.interests.join(', ')||'food, culture';
@@ -925,7 +1167,7 @@ Generate ${numDays} day(s). CLUSTER STOPS GEOGRAPHICALLY — no backtracking acr
   } catch(e){
     clearInterval(stepInt);
     show('s-create');
-    alert('AI generation failed: '+e.message+'\n\nCheck your API key in Settings, or use "Create Blank" to build manually.');
+    showAlert('AI generation failed: '+e.message+' — Check your API key in Settings, or tap Create Blank to build manually.');
   }
 }
 
