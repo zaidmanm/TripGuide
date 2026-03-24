@@ -590,7 +590,11 @@ input:focus,textarea:focus,select:focus{outline:none;}
 
       <input class="setting-input" type="password" id="key-input" placeholder="Paste sk-ant-... here">
       <div id="key-status" class="api-status none">No API key — AI generation disabled. You can still create trips manually.</div>
-      <button class="setting-save btn" onclick="saveKey()">Save API Key</button>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="setting-save btn" onclick="saveKey()" style="flex:1;">Save API Key</button>
+        <button class="btn" onclick="testKey()" id="test-btn" style="flex:1;background:#070F18;color:var(--b);border:1px solid var(--b);border-radius:13px;padding:13px;font-size:13px;font-weight:800;cursor:pointer;">🔬 Test Key</button>
+      </div>
+      <div id="test-output" style="display:none;background:#050C07;border:1px solid var(--border);border-radius:11px;padding:12px;margin-top:10px;font-size:11px;color:var(--sub);line-height:1.7;word-break:break-all;white-space:pre-wrap;"></div>
     </div>
     <div class="setting-section">
       <span class="setting-label">About</span>
@@ -896,6 +900,53 @@ function saveKey(){
   document.getElementById('api-hint').textContent='';
 }
 
+async function testKey(){
+  const k = getKey();
+  if(!k) return showAlert('No API key saved. Paste your key and tap Save first.');
+  const btn = document.getElementById('test-btn');
+  const out = document.getElementById('test-output');
+  btn.textContent = '⏳ Testing...';
+  btn.disabled = true;
+  out.style.display = 'block';
+  out.style.color = 'var(--sub)';
+  out.textContent = 'Sending test request to Anthropic...';
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(()=>controller.abort(), 15000);
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      signal: controller.signal,
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': k,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true',
+      },
+      body: JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:20,
+        messages:[{role:'user',content:'Reply with just the word OK'}],
+      }),
+    });
+    clearTimeout(tid);
+    const raw = await res.text();
+    if(res.ok){
+      let parsed; try{ parsed=JSON.parse(raw); }catch(e){}
+      const reply = parsed?.content?.[0]?.text || '(no text)';
+      out.style.color = 'var(--nat)';
+      out.textContent = `✅ SUCCESS — API key works!\n\nModel replied: "${reply}"\nHTTP status: ${res.status}\nBalance should be active.`;
+    } else {
+      out.style.color = '#FF7070';
+      out.textContent = `❌ FAILED — HTTP ${res.status}\n\nRaw response:\n${raw}`;
+    }
+  } catch(e){
+    out.style.color = '#FF7070';
+    out.textContent = `❌ ERROR: ${e.name}: ${e.message}\n\n${e.name==='AbortError'?'Request timed out — check your internet connection.':'Could not reach Anthropic. Check WiFi/VPN.'}`;
+  }
+  btn.textContent = '🔬 Test Key';
+  btn.disabled = false;
+}
+
 // ── HOTEL LOOKUP ──────────────────────────────────────────────────────────────
 window._selectedHotel = null;
 let _hotelLookupTimer = null;
@@ -1137,8 +1188,13 @@ Return ONLY this JSON (no markdown, no code blocks):
 Generate ${numDays} day(s). CLUSTER STOPS GEOGRAPHICALLY — no backtracking across the city. Make every stop genuinely useful and locally authentic.`;
 
   try {
+    // 75-second timeout — if no response by then, abort and show error
+    const controller = new AbortController();
+    const timeoutId = setTimeout(()=> controller.abort(), 75000);
+
     const res=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
+      signal: controller.signal,
       headers:{
         'Content-Type':'application/json',
         'x-api-key':key,
@@ -1151,6 +1207,7 @@ Generate ${numDays} day(s). CLUSTER STOPS GEOGRAPHICALLY — no backtracking acr
         messages:[{role:'user',content:prompt}],
       }),
     });
+    clearTimeout(timeoutId);
     clearInterval(stepInt);
     if(!res.ok){
       const e=await res.json().catch(()=>({error:{message:res.statusText}}));
@@ -1167,7 +1224,11 @@ Generate ${numDays} day(s). CLUSTER STOPS GEOGRAPHICALLY — no backtracking acr
   } catch(e){
     clearInterval(stepInt);
     show('s-create');
-    showAlert('AI generation failed: '+e.message+' — Check your API key in Settings, or tap Create Blank to build manually.');
+    const isTimeout = e.name === 'AbortError';
+    showAlert(isTimeout
+      ? 'Request timed out after 75 seconds. Check your internet connection and try again.'
+      : 'AI generation failed: '+e.message+' — Check your API key in Settings, or tap Create Blank to build manually.'
+    );
   }
 }
 
